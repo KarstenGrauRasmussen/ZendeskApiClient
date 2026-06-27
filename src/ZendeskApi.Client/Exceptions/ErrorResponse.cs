@@ -1,8 +1,10 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using ZendeskApi.Client.Converters;
 
 namespace ZendeskApi.Client.Exceptions
 {
+    [JsonConverter(typeof(ErrorResponseConverter))]
     public class ErrorResponse
     {
         public ErrorResponse()
