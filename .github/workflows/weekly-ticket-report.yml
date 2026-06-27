@@ -1,0 +1,32 @@
+name: weekly-ticket-report
+
+# Posts a weekly support-ticket summary to Microsoft Teams.
+# Runs every Monday at 07:00 UTC, and can be triggered manually.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Generate and post weekly report
+        env:
+          ZENDESK_URL: ${{ secrets.ZENDESK_URL }}
+          ZENDESK_USERNAME: ${{ secrets.ZENDESK_USERNAME }}
+          ZENDESK_TOKEN: ${{ secrets.ZENDESK_TOKEN }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: dotnet run --project samples/WeeklyReport -c Release
