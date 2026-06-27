@@ -7,6 +7,7 @@ using ZendeskApi.Client.Models;
 //   ZENDESK_URL      e.g. https://yoursubdomain.zendesk.com
 //   ZENDESK_USERNAME e.g. you@company.com/token   (Zendesk wants the "/token" suffix for API tokens)
 //   ZENDESK_TOKEN    your API token
+// Note: the Search/Tickets APIs require an agent or admin account; end-users get HTTP 403.
 var url = Environment.GetEnvironmentVariable("ZENDESK_URL");
 var username = Environment.GetEnvironmentVariable("ZENDESK_USERNAME");
 var token = Environment.GetEnvironmentVariable("ZENDESK_TOKEN");
@@ -19,23 +20,71 @@ if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(username) || str
 
 var services = new ServiceCollection();
 services.AddZendeskClientWithHttpClientFactory(url, username, token);
-var provider = services.BuildServiceProvider();
-var client = provider.GetRequiredService<IZendeskClient>();
+var client = services.BuildServiceProvider().GetRequiredService<IZendeskClient>();
 
-// ---- Approach A: server-side Search (efficient; lets Zendesk do the filtering) ----
-// Produces the query  type:ticket status:open
-var search = await client.Search.SearchAsync<Ticket>(q =>
-    q.WithFilter("status", "open"));
+// ---- Page through ALL open tickets ----
+// The Search API uses offset pagination: each response carries the grand total in
+// Count and a non-null NextPage while more pages remain. We loop until NextPage is null.
+const int pageSize = 100;
+var openTickets = new List<Ticket>();
+var page = 1;
+var total = 0;
 
-Console.WriteLine($"Open tickets (via Search API): {search.Count}");
-foreach (var t in search)
+while (true)
 {
-    Console.WriteLine($"  #{t.Id}  [{t.Status}]  {t.Subject}");
+    var response = await client.Search.SearchAsync<Ticket>(
+        q => q.WithFilter("status", "open"),
+        new PagerParameters { Page = page, PageSize = pageSize });
+
+    total = response.Count;
+    openTickets.AddRange(response);
+
+    Console.Write($"\rFetched {openTickets.Count}/{total}...");
+
+    if (response.NextPage == null)
+        break;
+
+    page++;
 }
 
-// ---- Approach B: list tickets and filter client-side (handy if you can't use Search) ----
-// var page = await client.Tickets.GetAllAsync();
-// foreach (var t in page.Where(t => t.Status == TicketStatus.Open))
-//     Console.WriteLine($"  #{t.Id}  {t.Subject}");
+Console.WriteLine();
+Console.WriteLine($"\nOpen tickets retrieved: {openTickets.Count} (Zendesk reports {total} total)\n");
+
+// ---- Breakdown by priority ----
+Console.WriteLine("By priority:");
+foreach (var group in openTickets
+             .GroupBy(t => t.Priority)
+             .OrderByDescending(g => g.Count()))
+{
+    var label = group.Key?.ToString() ?? "(none)";
+    Console.WriteLine($"  {label,-8} {group.Count()}");
+}
+
+// ---- Breakdown by assignee (resolve ids -> names in one batch call) ----
+var assigneeIds = openTickets
+    .Where(t => t.AssigneeId.HasValue)
+    .Select(t => t.AssigneeId!.Value)
+    .Distinct()
+    .ToArray();
+
+var names = new Dictionary<long, string>();
+if (assigneeIds.Length > 0)
+{
+    var users = await client.Users.GetAllAsync(assigneeIds);
+    foreach (var u in users)
+        names[u.Id] = u.Name;
+}
+
+Console.WriteLine("\nTop assignees:");
+foreach (var group in openTickets
+             .GroupBy(t => t.AssigneeId)
+             .OrderByDescending(g => g.Count())
+             .Take(10))
+{
+    var label = group.Key.HasValue
+        ? names.TryGetValue(group.Key.Value, out var n) ? n : $"user {group.Key}"
+        : "(unassigned)";
+    Console.WriteLine($"  {label,-30} {group.Count()}");
+}
 
 return 0;
