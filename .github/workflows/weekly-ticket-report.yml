@@ -25,8 +25,9 @@ jobs:
 
       - name: Generate and post weekly report
         env:
-          ZENDESK_URL: ${{ secrets.ZENDESK_URL }}
-          ZENDESK_USERNAME: ${{ secrets.ZENDESK_USERNAME }}
+          # URL and username are not secret; override with repo Variables if you prefer.
+          ZENDESK_URL: ${{ vars.ZENDESK_URL || 'https://speedwareaps.zendesk.com' }}
+          ZENDESK_USERNAME: ${{ vars.ZENDESK_USERNAME || 'karsten@speedadmin.com/token' }}
           ZENDESK_TOKEN: ${{ secrets.ZENDESK_TOKEN }}
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
         run: dotnet run --project samples/WeeklyReport -c Release

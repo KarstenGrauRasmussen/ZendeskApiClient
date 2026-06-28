@@ -18,15 +18,19 @@ dotnet run --project samples/WeeklyReport
 
 ## Scheduled run (GitHub Actions)
 
-The workflow runs every Monday 07:00 UTC (and on manual dispatch). Add these
-repository **Secrets** (Settings → Secrets and variables → Actions):
+The workflow runs every Monday 07:00 UTC (and on manual dispatch). It needs
+just two repository **Secrets** (Settings → Secrets and variables → Actions):
 
 | Secret | Value |
 | --- | --- |
-| `ZENDESK_URL` | `https://yoursubdomain.zendesk.com` |
-| `ZENDESK_USERNAME` | `you@company.com/token` |
 | `ZENDESK_TOKEN` | a fresh Zendesk API token (create a new one — don't reuse a pasted one) |
 | `TEAMS_WEBHOOK_URL` | the incoming webhook URL for the target Teams channel |
+
+The subdomain URL and login email are not secrets, so they are baked into the
+workflow as defaults. To point it at a different instance without editing the
+file, set repository **Variables** `ZENDESK_URL` and `ZENDESK_USERNAME`
+(Settings → Secrets and variables → Actions → Variables) — they override the
+defaults.
 
 ### Getting the Teams webhook URL
 
